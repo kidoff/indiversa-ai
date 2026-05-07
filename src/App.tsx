@@ -54,7 +54,9 @@ User Query: ${q}`,
       }
     } catch (err: any) {
       console.error(err);
-      if (err.message?.includes("403") || err.status === 403 || err.message?.includes("PERMISSION_DENIED")) {
+      if (err.message?.includes("API key expired") || err.message?.includes("API_KEY_INVALID")) {
+        setError("API Key Error: Your API key is invalid or expired. If you just updated the key in Cloudflare, make sure you trigger a fully new REDEPLOY of your Cloudflare project so the updated 'VITE_GEMINI_API_KEY' takes effect. Also, verify the key was copied correctly from AI Studio.");
+      } else if (err.message?.includes("403") || err.status === 403 || err.message?.includes("PERMISSION_DENIED")) {
         setError("API Key Error (403): Your Google Cloud project has been denied access or lacks the necessary permissions. Please check your Google AI Studio account, ensure your project is active, and try generating a new API Key.");
       } else if (err.message?.includes("429") || err.status === 429) {
         setError("You have exceeded your Gemini API rate limit. Please wait a moment and try again, or check your API key billing details on Google AI Studio.");
