@@ -34,16 +34,35 @@ export default function App() {
 
     try {
       const ai = getAI();
-      const response = await ai.models.generateContentStream({
-         model: "gemini-2.5-flash",
-         contents: `You are Indiversa Ai, an advanced, professional AI search engine specializing in stock market research and real-time data analysis. 
-Please provide a comprehensive, accurate, and highly professional response to the following query. Format your response cleanly using markdown. Use a structured and analytical tone appropriate for financial analysts and investors.
-
-User Query: ${q}`,
-         config: {
-           tools: [{ googleSearch: {} }],
-         }
-      });
+      let response;
+      try {
+        response = await ai.models.generateContentStream({
+           model: "gemini-2.5-flash",
+           contents: `You are Indiversa Ai, an advanced, professional AI search engine specializing in stock market research and real-time data analysis. 
+  Please provide a comprehensive, accurate, and highly professional response to the following query. Format your response cleanly using markdown. Use a structured and analytical tone appropriate for financial analysts and investors.
+  
+  User Query: ${q}`,
+           config: {
+             tools: [{ googleSearch: {} }],
+           }
+        });
+      } catch (firstErr: any) {
+        if (firstErr.message?.includes("503") || firstErr.status === 503 || firstErr.message?.includes("high demand")) {
+          // Fallback to another model
+          response = await ai.models.generateContentStream({
+             model: "gemini-1.5-flash", // Fallback model
+             contents: `You are Indiversa Ai, an advanced, professional AI search engine specializing in stock market research and real-time data analysis. 
+    Please provide a comprehensive, accurate, and highly professional response to the following query. Format your response cleanly using markdown. Use a structured and analytical tone appropriate for financial analysts and investors.
+    
+    User Query: ${q}`,
+             config: {
+               tools: [{ googleSearch: {} }],
+             }
+          });
+        } else {
+          throw firstErr;
+        }
+      }
 
       let fullText = "";
       for await (const chunk of response) {
@@ -58,6 +77,8 @@ User Query: ${q}`,
         setError("API Key Error: Your API key is invalid or expired. If you just updated the key in Cloudflare, make sure you trigger a fully new REDEPLOY of your Cloudflare project so the updated 'VITE_GEMINI_API_KEY' takes effect. Also, verify the key was copied correctly from AI Studio.");
       } else if (err.message?.includes("403") || err.status === 403 || err.message?.includes("PERMISSION_DENIED")) {
         setError("API Key Error (403): Your Google Cloud project has been denied access or lacks the necessary permissions. Please check your Google AI Studio account, ensure your project is active, and try generating a new API Key.");
+      } else if (err.message?.includes("503") || err.status === 503 || err.message?.includes("high demand")) {
+        setError("Service Unavailable (503): The Google AI models are currently experiencing high demand. Please try again in down a few minutes.");
       } else if (err.message?.includes("429") || err.status === 429) {
         setError("You have exceeded your Gemini API rate limit. Please wait a moment and try again, or check your API key billing details on Google AI Studio.");
       } else {
