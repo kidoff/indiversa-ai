@@ -54,7 +54,9 @@ User Query: ${q}`,
       }
     } catch (err: any) {
       console.error(err);
-      if (err.message?.includes("429") || err.status === 429) {
+      if (err.message?.includes("403") || err.status === 403 || err.message?.includes("PERMISSION_DENIED")) {
+        setError("API Key Error (403): Your Google Cloud project has been denied access or lacks the necessary permissions. Please check your Google AI Studio account, ensure your project is active, and try generating a new API Key.");
+      } else if (err.message?.includes("429") || err.status === 429) {
         setError("You have exceeded your Gemini API rate limit. Please wait a moment and try again, or check your API key billing details on Google AI Studio.");
       } else {
         setError(err.message || "An error occurred while fetching the search results. Please verify your API key and network connection.");
