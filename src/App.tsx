@@ -35,7 +35,7 @@ export default function App() {
     try {
       const ai = getAI();
       const response = await ai.models.generateContentStream({
-         model: "gemini-3.1-pro-preview",
+         model: "gemini-2.5-flash",
          contents: `You are Indiversa Ai, an advanced, professional AI search engine specializing in stock market research and real-time data analysis. 
 Please provide a comprehensive, accurate, and highly professional response to the following query. Format your response cleanly using markdown. Use a structured and analytical tone appropriate for financial analysts and investors.
 
@@ -54,7 +54,11 @@ User Query: ${q}`,
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "An error occurred while fetching the search results. Please verify your API key and network connection.");
+      if (err.message?.includes("429") || err.status === 429) {
+        setError("You have exceeded your Gemini API rate limit. Please wait a moment and try again, or check your API key billing details on Google AI Studio.");
+      } else {
+        setError(err.message || "An error occurred while fetching the search results. Please verify your API key and network connection.");
+      }
     } finally {
       setIsSearching(false);
     }
