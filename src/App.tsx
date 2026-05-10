@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Loader2, TrendingUp, BarChart3, Globe, Zap, ArrowRight, ShieldCheck, Activity, AlertCircle, ChevronLeft } from 'lucide-react';
+import { Search, Loader2, TrendingUp, BarChart3, Globe, Zap, ArrowRight, ShieldCheck, Activity, AlertCircle, ChevronLeft, Volume2, VolumeX } from 'lucide-react';
 import { getAI } from './lib/gemini';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,14 +18,81 @@ export default function App() {
   const [result, setResult] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakingLang, setSpeakingLang] = useState<string | null>(null);
+  const [translatingLang, setTranslatingLang] = useState<string | null>(null);
   const searchEndRef = useRef<HTMLDivElement>(null);
   
+  const stopSpeaking = () => {
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+    setSpeakingLang(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  const handleSpeak = async (targetLang: 'English' | 'Hindi' | 'Bengali') => {
+    if (isSpeaking && speakingLang === targetLang) {
+      stopSpeaking();
+      return;
+    }
+    stopSpeaking();
+    
+    if (!result) return;
+
+    let textToSpeak = result;
+    // basic markdown strip
+    textToSpeak = textToSpeak.replace(/(\*|_|#|`|~|>|-|\+)/g, '');
+
+    if (targetLang !== 'English') {
+      setTranslatingLang(targetLang);
+      try {
+        const ai = getAI();
+        const response = await ai.models.generateContent({
+           model: "gemini-2.5-flash",
+           contents: `Translate the following financial market analysis text completely into ${targetLang}. Output ONLY the pure translated spoken text, without markdown, notes, or emojis. Readability is important so numbers and symbols should be translated to spoken words in ${targetLang}.\n\nText:\n${textToSpeak}`
+        });
+        textToSpeak = response.text || textToSpeak;
+      } catch (err) {
+        console.error('Translation error:', err);
+        textToSpeak = targetLang === 'Hindi' ? "मुझे खेद है, मैं अभी अनुवाद नहीं कर सकता।" : "দুঃখিত, আমি এখন অনুবাদ করতে পারছি না।";
+      } finally {
+        setTranslatingLang(null);
+      }
+    }
+    
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    if (targetLang === 'Hindi') utterance.lang = 'hi-IN';
+    else if (targetLang === 'Bengali') utterance.lang = 'bn-IN';
+    else utterance.lang = 'en-US';
+
+    utterance.onstart = () => {
+      setIsSpeaking(true);
+      setSpeakingLang(targetLang);
+    };
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setSpeakingLang(null);
+    };
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      setSpeakingLang(null);
+    };
+
+    window.speechSynthesis.speak(utterance);
+  };
+
   // Search handling
   const handleSearch = async (e?: React.FormEvent, selectedQuery?: string) => {
     if (e) e.preventDefault();
     const q = selectedQuery || query;
     if (!q.trim()) return;
 
+    stopSpeaking();
     setQuery(q);
     setActiveQuery(q);
     setIsSearching(true);
@@ -246,6 +313,31 @@ export default function App() {
                       animate={{ opacity: 1, y: 0 }}
                       className="relative z-10"
                     >
+                      {/* Speak Buttons */}
+                      <div className="fixed top-24 sm:top-28 right-4 sm:right-8 flex flex-col gap-2 z-[60]">
+                        {(['English', 'Hindi', 'Bengali'] as const).map((lang) => (
+                          <button
+                            key={lang}
+                            onClick={() => handleSpeak(lang)}
+                            disabled={translatingLang !== null && translatingLang !== lang}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-xl border transition-all duration-300 backdrop-blur-md
+                              ${speakingLang === lang ? 'bg-emerald-600/90 border-emerald-500 text-white' : 'bg-slate-800/90 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'}
+                              ${translatingLang === lang ? 'animate-pulse opacity-80' : ''}
+                            `}
+                            title={`Speak in ${lang}`}
+                          >
+                            {translatingLang === lang ? (
+                              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                            ) : speakingLang === lang ? (
+                              <VolumeX className="w-4 h-4 shrink-0" />
+                            ) : (
+                              <Volume2 className="w-4 h-4 shrink-0" />
+                            )}
+                            <span className="text-xs sm:text-sm font-medium">{lang}</span>
+                          </button>
+                        ))}
+                      </div>
+
                       <div className="markdown-body">
                         <Markdown remarkPlugins={[remarkGfm]}>{result}</Markdown>
                       </div>
