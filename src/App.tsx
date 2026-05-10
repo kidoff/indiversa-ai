@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Loader2, TrendingUp, BarChart3, Globe, Zap, ArrowRight, ShieldCheck, Activity, AlertCircle, ChevronLeft, Volume2, VolumeX } from 'lucide-react';
 import { getAI } from './lib/gemini';
+import { getGroq } from './lib/groq';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'motion/react';
@@ -61,9 +62,28 @@ export default function App() {
            contents: `Translate the following financial market analysis text into natural, spoken ${targetLang}. Output ONLY the pure translated text, without markdown, notes, or emojis. Write numbers and symbols in plain words to ensure text-to-speech reads them correctly in ${targetLang}.\n\nText:\n${textToSpeak}`
         });
         textToSpeak = response.text || textToSpeak;
-      } catch (err) {
+      } catch (err: any) {
         console.error('Translation error:', err);
-        textToSpeak = targetLang === 'Hindi' ? "मुझे खेद है, मैं अभी अनुवाद नहीं कर सकता।" : "দুঃখিত, আমি এখন অনুবাদ করতে পারছি না।";
+        const isRateLimit = err.message?.includes("429") || err.status === 429 || err.message?.includes("quota") || err.message?.includes("limit") || err.message?.includes("503") || err.status === 503 || err.message?.includes("high demand");
+        
+        if (isRateLimit && import.meta.env.VITE_GROQ_API_KEY) {
+           try {
+              const groq = getGroq();
+              const groqRes = await groq.chat.completions.create({
+                 model: "llama-3.3-70b-versatile",
+                 messages: [{
+                   role: "user",
+                   content: `Translate the following financial market analysis text into natural, spoken ${targetLang}. Output ONLY the pure translated text, without markdown, notes, or emojis. Write numbers and symbols in plain words to ensure text-to-speech reads them correctly in ${targetLang}.\n\nText:\n${textToSpeak}`
+                 }]
+              });
+              textToSpeak = groqRes.choices[0]?.message?.content || textToSpeak;
+           } catch (groqErr) {
+              console.error('Groq Translation error:', groqErr);
+              textToSpeak = targetLang === 'Hindi' ? "मुझे खेद है, मैं अभी अनुवाद नहीं कर सकता।" : "দুঃখিত, আমি এখন অনুবাদ করতে পারছি না।";
+           }
+        } else {
+           textToSpeak = targetLang === 'Hindi' ? "मुझे खेद है, मैं अभी अनुवाद नहीं कर सकता।" : "দুঃখিত, আমি এখন অনুবাদ করতে পারছি না।";
+        }
       } finally {
         setTranslatingLang(null);
       }
@@ -115,6 +135,7 @@ export default function App() {
     try {
       const ai = getAI();
       let response;
+      let isGroq = false;
       try {
         response = await ai.models.generateContentStream({
            model: "gemini-2.5-flash",
@@ -127,17 +148,24 @@ export default function App() {
            }
         });
       } catch (firstErr: any) {
-        if (firstErr.message?.includes("503") || firstErr.status === 503 || firstErr.message?.includes("high demand")) {
-          // Fallback to another model
-          response = await ai.models.generateContentStream({
-             model: "gemini-1.5-flash", // Fallback model
-             contents: `You are Indiversa Ai, an advanced, professional AI search engine specializing in stock market research and real-time data analysis. 
-    Please provide a comprehensive, accurate, and highly professional response to the following query. Format your response cleanly using markdown. Use a structured and analytical tone appropriate for financial analysts and investors.
-    
-    User Query: ${q}`,
-             config: {
-               tools: [{ googleSearch: {} }],
-             }
+        const isQuotaOrLimit = firstErr.message?.includes("429") || firstErr.status === 429 || firstErr.message?.includes("503") || firstErr.status === 503 || firstErr.message?.includes("high demand") || firstErr.message?.includes("quota") || firstErr.message?.includes("limit");
+        
+        if (isQuotaOrLimit && import.meta.env.VITE_GROQ_API_KEY) {
+          isGroq = true;
+          const groq = getGroq();
+          response = await groq.chat.completions.create({
+            messages: [
+              {
+                role: "system",
+                content: "You are Indiversa Ai, an advanced, professional AI search engine specializing in stock market research and real-time data analysis. Please provide a comprehensive, accurate, and highly professional response to the following query. Format your response cleanly using markdown. Use a structured and analytical tone appropriate for financial analysts and investors."
+              },
+              {
+                role: "user",
+                content: q,
+              }
+            ],
+            model: "llama-3.3-70b-versatile",
+            stream: true,
           });
         } else {
           throw firstErr;
@@ -145,10 +173,18 @@ export default function App() {
       }
 
       let fullText = "";
-      for await (const chunk of response) {
-        if (chunk.text) {
-          fullText += chunk.text;
+      if (isGroq) {
+        for await (const chunk of response as any) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          fullText += content;
           setResult(fullText);
+        }
+      } else {
+        for await (const chunk of response as any) {
+          if (chunk.text) {
+            fullText += chunk.text;
+            setResult(fullText);
+          }
         }
       }
     } catch (err: any) {
