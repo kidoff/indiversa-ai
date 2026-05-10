@@ -30,6 +30,10 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Eagerly load voices
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.getVoices();
+    };
     return () => {
       window.speechSynthesis.cancel();
     };
@@ -54,7 +58,7 @@ export default function App() {
         const ai = getAI();
         const response = await ai.models.generateContent({
            model: "gemini-2.5-flash",
-           contents: `Translate the following financial market analysis text completely into ${targetLang}. Output ONLY the pure translated spoken text, without markdown, notes, or emojis. Readability is important so numbers and symbols should be translated to spoken words in ${targetLang}.\n\nText:\n${textToSpeak}`
+           contents: `Translate the following financial market analysis text into natural, spoken ${targetLang}. Output ONLY the pure translated text, without markdown, notes, or emojis. Write numbers and symbols in plain words to ensure text-to-speech reads them correctly in ${targetLang}.\n\nText:\n${textToSpeak}`
         });
         textToSpeak = response.text || textToSpeak;
       } catch (err) {
@@ -65,25 +69,34 @@ export default function App() {
       }
     }
     
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    if (targetLang === 'Hindi') utterance.lang = 'hi-IN';
-    else if (targetLang === 'Bengali') utterance.lang = 'bn-IN';
-    else utterance.lang = 'en-US';
+    const langCode = targetLang === 'Hindi' ? 'hi-IN' : targetLang === 'Bengali' ? 'bn-IN' : 'en-US';
+    const voices = window.speechSynthesis.getVoices();
+    let voice = voices.find(v => v.lang.includes(langCode) || (targetLang === 'Bengali' && v.lang.includes('bn')));
 
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-      setSpeakingLang(targetLang);
-    };
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      setSpeakingLang(null);
-    };
-    utterance.onerror = () => {
-      setIsSpeaking(false);
-      setSpeakingLang(null);
-    };
+    // Chunk text by sentences to prevent TTS cut-offs on long texts
+    const chunks = textToSpeak.match(/[^.!?।\n]+[.!?।\n]*/g) || [textToSpeak];
 
-    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
+    setSpeakingLang(targetLang);
+
+    chunks.forEach((chunk, index) => {
+      if (!chunk.trim()) return;
+      const utterance = new SpeechSynthesisUtterance(chunk.trim());
+      utterance.lang = langCode;
+      if (voice) utterance.voice = voice;
+      
+      if (index === chunks.length - 1) {
+        utterance.onend = () => {
+          setIsSpeaking(false);
+          setSpeakingLang(null);
+        };
+        utterance.onerror = () => {
+          setIsSpeaking(false);
+          setSpeakingLang(null);
+        };
+      }
+      window.speechSynthesis.speak(utterance);
+    });
   };
 
   // Search handling
