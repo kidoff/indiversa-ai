@@ -283,10 +283,23 @@ export default function App() {
               </div>
 
               {/* Stats/Features Footer */}
-              <div className="mt-auto pt-24 pb-8 flex items-center justify-center gap-12 text-slate-500 text-sm font-medium">
+              <div className="mt-auto pt-24 flex items-center justify-center gap-12 text-slate-500 text-sm font-medium">
                 <div className="flex items-center gap-2"><Globe className="w-4 h-4" /> Global Coverage</div>
                 <div className="flex items-center gap-2"><Zap className="w-4 h-4" /> Real-time Data</div>
                 <div className="flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Institutional Grade</div>
+              </div>
+
+              {/* Indiversa Tools */}
+              <div className="mt-12 pb-8 w-full max-w-4xl flex flex-col items-center">
+                <h3 className="text-slate-400 text-sm uppercase tracking-wider font-semibold mb-6">Indiversa Tools</h3>
+                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                  <a href="https://indiversa-kit.pages.dev/" target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none text-center px-6 py-3 bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/30 rounded-xl text-slate-300 hover:text-emerald-400 transition-all font-medium text-sm">
+                    Indiversa Kit
+                  </a>
+                  <a href="https://indiversa-storefront-builder.hasislam2010.workers.dev/" target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none text-center px-6 py-3 bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/30 rounded-xl text-slate-300 hover:text-emerald-400 transition-all font-medium text-sm">
+                    Indiversa Storefront Builder
+                  </a>
+                </div>
               </div>
             </motion.div>
           ) : (
